@@ -1,0 +1,470 @@
+#+TITLE: Getting Started with Haskell
+
+#+PROPERTY: header-args:haskell :results replace output
+#+PROPERTY: header-args:haskell+ :noweb yes
+#+PROPERTY: header-args:haskell+ :wrap EXAMPLE
+
+* Exploring Haskell Interactively
+Working with numbers
+#+BEGIN_SRC haskell
+1 + 2
+3 + 4 + 5
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+3
+12
+#+end_EXAMPLE
+
+Working with lists
+#+BEGIN_SRC haskell
+[1, 2, 3]
+["one", "two", "three"]
+[1..10]
+take 10 [1..]
+[10..1] -- I didn't know :-D
+[10, 9..1]
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+[1,2,3]
+["one","two","three"]
+[1,2,3,4,5,6,7,8,9,10]
+[1,2,3,4,5,6,7,8,9,10]
+[]
+[10,9,8,7,6,5,4,3,2,1]
+#+end_EXAMPLE
+
+Working with tuples
+#+BEGIN_SRC haskell
+tuple = (2, "Hello")
+triple = (3, True, ())
+
+tuple
+triple
+fst tuple
+snd tuple
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+(2,"Hello")
+(3,True,())
+2
+Hello
+#+end_EXAMPLE
+
+Printing on the screen
+#+BEGIN_SRC haskell
+putStrLn $ show 12
+putStrLn $ show [1..10]
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+12
+[1,2,3,4,5,6,7,8,9,10]
+#+end_EXAMPLE
+
+* Writing Your First Haskell Program
+#+BEGIN_SRC haskell :tangle chapter-01/Main.hs :eval never
+module Main where
+
+main = print "Hello World!!!"
+#+END_SRC
+
+#+BEGIN_SRC shell :results raw :wrap EXAMPLE
+cd chapter-01/
+ghc Main
+./Main
+
+runhaskell Main.hs
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+"Hello World!!!"
+"Hello World!!!"
+#+end_EXAMPLE
+
+#+BEGIN_SRC haskell
+:load chapter-01/Main.hs
+main
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+[1 of 2] Compiling Main             ( chapter-01/Main.hs, interpreted )
+Ok, one module loaded.
+Hello World!!!
+#+end_EXAMPLE
+
+* Creating New Variables
+#+BEGIN_SRC haskell
+greeting = "Good Morning"
+putStrLn greeting
+
+greeting = "Good Afternoon" -- re-biding a symbol in GHCi, not changing the value of a variable
+putStrLn greeting
+
+two = 1
+-- two = two + 1 -- will hang forever, why?
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Good Morning
+#+end_EXAMPLE
+
+* Writing Functions
+DISCUSS: Defining functions and variables looks almost identical
+
+#+BEGIN_SRC haskell
+makeGreetings salutation name = salutation <> " " <> name
+
+-- same thing
+makeGreetings' = \salutation name -> salutation <> " " <> name
+makeGreetings'' = \salutation -> \name -> salutation <> " " <> name
+
+makeGreetings "Hello" "Haskell Friends"
+makeGreetings' "Hello" "Haskell Friends"
+makeGreetings'' "Hello" "Haskell Friends"
+
+-- turing every function into an infix operator
+"Hello" `makeGreetings` "Gabriele"
+
+-- flip arguments
+(flip makeGreetings) "Gabriele" "Hello"
+flip makeGreetings "Gabriele" "Hello"
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Hello Haskell Friends
+Hello Haskell Friends
+Hello Haskell Friends
+Hello Gabriele
+Hello Gabriele
+Hello Gabriele
+#+end_EXAMPLE
+
+Composing functions with ~$~ and ~.~
+
+#+BEGIN_SRC haskell
+addOne = (+) 1
+timesTwo = (*) 2
+
+timesTwo $ addOne 4
+timesTwo . addOne $ 4
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+10
+10
+#+end_EXAMPLE
+
+Pointfree programming
+
+#+BEGIN_SRC haskell
+makeGreetings salutation name = salutation <> " " <> name
+makeGreetings' salutation = ((salutation <> " ") <>)
+makeGreetings'' salutation = (<>) (salutation <> " ")
+makeGreetings''' = (<>) . \salutation -> salutation <> " "
+makeGreetings'''' = (<>) . (<> " ")
+
+makeGreetings "Hello" "Haskell"
+makeGreetings' "Hello" "Haskell"
+makeGreetings'' "Hello" "Haskell"
+makeGreetings''' "Hello" "Haskell"
+makeGreetings'''' "Hello" "Haskell"
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Hello Haskell
+Hello Haskell
+Hello Haskell
+Hello Haskell
+Hello Haskell
+#+end_EXAMPLE
+
+* Precedence, Operators and Fixity
+Passing an argument to a function take precedence than passign that argument to an operator
+
+#+BEGIN_SRC haskell
+"The answer is " <> show 42
+"The sum of " <> show 1 <> " plus " <> show 3 <> " is " <> show 4
+
+show 3 + 1 -- implictly is `(show 3) + 1`, Haskell complains that a String (`show 3`) is not a number
+show (3 + 1)
+show $ 3 + 1
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+The answer is 42
+The sum of 1 plus 3 is 4
+<interactive>:1141:8: error:
+    • No instance for (Num String) arising from a use of ‘+’
+    • In the expression: show 3 + 1
+      In an equation for ‘it’: it = show 3 + 1
+4
+4
+#+end_EXAMPLE
+
+Function application is left associative, with operators you have more flexibility
+
+Operators:
+1. Are /infix/ by default, can be made to work like functions when surrounded by parenthesis.
+2. Have less precedence than function application.
+3. Must have two arguments.
+4. Must be named using symbols.
+5. Operators beginning with ~:~ are reserved for type constructors.
+
+#+BEGIN_SRC haskell
+:{
+infixl 6 +++ -- infix operator with left associativity and precedence of 6
+a +++ b = a + b
+:}
+
+1 +++ 2 * 3
+
+:{
+infixl 9 +++ -- infix operator with left associativity and precedence of 9
+a +++ b = a + b
+:}
+
+1 +++ 2 * 3
+
+:{
+infix 6 +++ -- infix operator without associativity and precedence of 6
+a +++ b = a + b
+:}
+
+-- cannot mix operators without associativity with same level of precedence
+1 +++ 2 +++ 3
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+7
+9
+<interactive>:1203:1: error:
+    Precedence parsing error
+        cannot mix ‘+++’ [infix 6] and ‘+++’ [infix 6] in the same infix expression
+#+end_EXAMPLE
+
+* Creating Local Variables Using ~let~ Bindings
+#+BEGIN_SRC haskell
+:{
+greeting person =
+  let joinWith c a b = a <> c <> b
+      joinLines = joinWith "\n"
+      mkGreetings = joinWith " "
+      hello = mkGreetings "Hello" person
+      goodbye = mkGreetings "Goodbye" person
+  in joinLines hello goodbye
+:}
+
+:{
+greetAndMeet name place =
+  let salutation = "Hello " <> name
+      meeting = location "Wednesday"
+  in salutation <> " " <> meeting
+  where
+    location day = "we will meet " <> day <> " " <> place
+:}
+
+greeting "Haskell Meetup"
+greetAndMeet "Haskell Meetup" "online"
+
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Hello Haskell Meetup\nGoodbye Haskell Meetup
+Hello Haskell Meetup we will meet Wednesday online
+#+end_EXAMPLE
+
+When to use ~let~ and when to use ~where~ mostly is a matter of personal style, but:
+- ~let~ bidings used for intermediate values.
+- ~where~ bindings for ancillary and helper functions.
+
+* Running Code Conditionally Using Branches
+In Haskell ~if/then/else~ is an expression with a type, therefore both branches
+must have the same type
+
+#+BEGIN_SRC haskell
+:{
+printNumber n =
+  let message = if n < 10
+                then show n
+                else "the number is too big"
+  in putStrLn message
+:}
+
+printNumber 5
+printNumber 10
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+5
+the number is too big
+#+end_EXAMPLE
+
+We can use guards to avoid nested ~if/then/else~
+
+#+BEGIN_SRC haskell
+:{
+classifyNumber n
+  | n < 0 = numberIs "Negative"
+  | n < 3 = numberIs "Small"
+  | n < 10 = numberIs "Medium"
+  | n == 42 = "That's the answer"
+  | n < 100 = numberIs "Big"
+  | n < 1000 = numberIs "Huge"
+  | otherwise = "Don't know"
+  where numberIs s = s <> " number" -- another good use of `where` over `let`
+:}
+
+classifyNumber 7
+classifyNumber 42
+classifyNumber (-1)
+
+otherwise
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Medium number
+That's the answer
+Negative number
+True
+#+end_EXAMPLE
+
+* Looping
+#+BEGIN_SRC haskell
+:{
+fizzBuzzFor n
+  | 0 == n `rem` 15 = "fizzbuzz"
+  | 0 == n `rem` 5  = "buzz"
+  | 0 == n `rem` 3  = "fizz"
+  | otherwise       = show n
+
+fizzBuzz n = go n 1 ""
+  where go n m r
+          | n >= m    = go n (m + 1) $ r <> fizzBuzzFor m <> " "
+          | otherwise = r
+:}
+
+fizzBuzz 15
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+1 2 fizz 4 buzz fizz 7 8 fizz buzz 11 fizz 13 14 fizzbuzz
+#+end_EXAMPLE
+
+* Summary
+- Basic syntax
+- Functions
+- Immutability
+- Recursion
+
+* Exercises
+** Factorial
+#+BEGIN_SRC haskell
+:{
+factorial 0 = 1
+factorial 1 = 1
+factorial n = n * (factorial $ n - 1)
+:}
+
+:t zipWith
+:t drop
+factorials' = 1 : 1 : zipWith (*) [2..] (drop 1 factorials')
+factorial' n = factorials' !! n
+
+factorial 5
+factorial' 5
+take 10 factorials'
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
+drop :: Int -> [a] -> [a]
+120
+120
+[1,1,2,6,24,120,720,5040,40320,362880]
+#+end_EXAMPLE
+
+** Fibonacci
+#+BEGIN_SRC haskell
+:{
+fibonacci 0 = 0
+fibonacci 1 = 1
+fibonacci n = (fibonacci $ n - 1) + (fibonacci $ n - 2)
+:}
+
+fibonaccis' = 0 : 1 : 1 : zipWith (+) (drop 1 fibonaccis') (drop 2 fibonaccis')
+fibonacci' n = fibonaccis' !! n
+
+fibonacci 5
+fibonacci 10
+fibonacci 25
+
+fibonacci' 5
+fibonacci' 10
+fibonacci' 25
+take 25 fibonaccis'
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+5
+55
+75025
+5
+55
+75025
+[0,1,1,2,3,5,8,13,21,34,55,89,144,233,377,610,987,1597,2584,4181,6765,10946,17711,28657,46368]
+#+end_EXAMPLE
+
+** Manual Currying
+#+BEGIN_SRC haskell
+curry' f = \a b -> f (a, b)
+
+uncurry' f = \(a, b) -> f a b
+
+uncurriedAddition (a, b) = a + b
+addition = curry' uncurriedAddition
+addOne = addition 1
+addTwo = addition 2
+addOne 1
+addOne 2
+addOne 3
+addTwo 1
+addTwo 2
+addTwo 3
+
+uncurriedAddition' = uncurry' (+)
+uncurriedAddition' (1, 2)
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+curry :: ((a, b) -> t) -> a -> b -> t
+curry' :: ((a, b) -> t) -> a -> b -> t
+2
+3
+4
+3
+4
+5
+3
+#+end_EXAMPLE
