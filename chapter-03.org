@@ -1,0 +1,258 @@
+#+TITLE: Getting Started with Types
+
+#+PROPERTY: header-args:haskell :results replace output
+#+PROPERTY: header-args:haskell+ :noweb yes
+#+PROPERTY: header-args:haskell+ :wrap EXAMPLE
+
+* Summary
+- Annotating Values with Type Information
+- Writing Type Annotations for Functions
+- Reading Type Errors
+  #+BEGIN_SRC haskell
+  "one" :: Int
+  (True, False) :: (Bool, Int)
+  let f = (+) :: Int -> Int -> Int in f 1 (2 :: Float)
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  <interactive>:3:1: error:
+      • Couldn't match type ‘[Char]’ with ‘Int’
+        Expected: Int
+          Actual: String
+      • In the expression: "one" :: Int
+        In an equation for ‘it’: it = "one" :: Int
+  <interactive>:4:8: error:
+      • Couldn't match expected type ‘Int’ with actual type ‘Bool’
+      • In the expression: False
+        In the expression: (True, False) :: (Bool, Int)
+        In an equation for ‘it’: it = (True, False) :: (Bool, Int)
+  <interactive>:5:42: error:
+      • Couldn't match expected type ‘Int’ with actual type ‘Float’
+      • In the second argument of ‘f’, namely ‘(2 :: Float)’
+        In the expression: f 1 (2 :: Float)
+        In the expression:
+          let f = (+) :: Int -> Int -> Int in f 1 (2 :: Float)
+  #+end_EXAMPLE
+- Working with Polymorphic Functions
+- Exploring tye Type Space with Undefined.
+
+  Write a program that will take a list of list of numbers and returns a string
+  with comma-separated list of numbers where each number is the sum of the
+  occurrences of biggest numbers minus the sum of the occurrences of the
+  smallest numbers
+
+  #+BEGIN_SRC haskell
+  import Data.List (intercalate)
+
+  :{
+  sumBiggest :: [[Int]] -> String
+  sumBiggest = undefined
+  :}
+
+  :{
+  sumBiggest :: [[Int]] -> String
+  sumBiggest = intercalate ", " . map diff
+    where diff = undefined
+  :}
+
+  :{
+  sumBiggest :: [[Int]] -> String
+  sumBiggest = intercalate ", " . map diff
+    where diff xs = show $ sum (biggest xs []) - sum (smallest xs [])
+          biggest = undefined
+          smallest = undefined
+  :}
+
+  :{
+  sumBiggest :: [[Int]] -> String
+  sumBiggest = intercalate ", " . map diff
+    where diff xs = show $ sum (biggest xs []) - sum (smallest xs [])
+          biggest [] r = r
+          biggest (x:xs) [] = biggest xs [x]
+          biggest (x:xs) ys@(y:_)
+            | x < y = biggest xs ys
+            | x == y = biggest xs $ x:ys
+            | x > y = biggest xs [x]
+          smallest [] r = r
+          smallest (x:xs) [] = smallest xs [x]
+          smallest (x:xs) ys@(y:_)
+            | x > y = smallest xs ys
+            | x == y = smallest xs $ x:ys
+            | x < y = smallest xs [x]
+  :}
+
+  sumBiggest [[1, 2, 2], [1, 1, 5, 5, 5]]
+  sumBiggest [[1, 2, 2], [1, 1, 2, 2, 2, 5, 5, 5]]
+
+  :{
+  sumBiggest :: [[Int]] -> String
+  sumBiggest = intercalate ", " . map diff
+    where diff xs = show $ sum (biggest xs []) - sum (smallest xs [])
+          biggest = accumulateWhen (==) (>)
+          smallest = accumulateWhen (==) (<)
+          accumulateWhen _ _ [] r = r
+          accumulateWhen f g (x:xs) [] = accumulateWhen f g xs [x]
+          accumulateWhen f g (x:xs) ys@(y:_)
+            | f x y = accumulateWhen f g xs $ x:ys
+            | g x y = accumulateWhen f g xs [x]
+            | otherwise = accumulateWhen f g xs ys
+  :}
+
+  sumBiggest [[1, 2, 2], [1, 1, 5, 5, 5]]
+  sumBiggest [[1, 2, 2], [1, 1, 2, 2, 2, 5, 5, 5]]
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  3, 13
+  3, 13
+  3, 13
+  3, 13
+  #+end_EXAMPLE
+- Getting Help from Type Holes
+  #+BEGIN_SRC haskell
+  let xs = [1..] in take 5 _
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  <interactive>:3:26: error:
+      • Found hole: _ :: [a]
+        Where: ‘a’ is a rigid type variable bound by
+                 the inferred type of it :: [a]
+                 at <interactive>:3:1-26
+      • In the second argument of ‘take’, namely ‘_’
+        In the expression: take 5 _
+        In the expression: let xs = [1 .. ] in take 5 _
+      • Relevant bindings include
+          xs :: forall {a}. (Num a, Enum a) => [a]
+            (bound at <interactive>:3:5)
+          it :: [a] (bound at <interactive>:3:1)
+        Valid hole fits include
+          [] :: forall a. [a]
+            with [] @a
+            (bound at <wired into compiler>)
+          mempty :: forall a. Monoid a => a
+            with mempty @[a]
+            (imported from ‘Prelude’ (and originally defined in ‘GHC.Base’))
+  #+end_EXAMPLE
+- Looking at the Type of main
+
+* Exercises
+** Undefined
+There are many ways we could use undefined to write a version of ~addThree~ that
+type checks. Why are there so many versions?
+
+#+BEGIN_SRC haskell :results silent
+:{
+addThree :: Int -> Int -> Int -> Int
+addThree = undefined -- undefined :: Int -> Int -> Int -> Int
+:}
+
+:{
+addThree :: Int -> Int -> Int -> Int
+addThree a = undefined -- undefined :: Int -> Int -> Int
+:}
+
+:{
+addThree :: Int -> Int -> Int -> Int
+addThree a b = undefined -- undefined :: Int -> Int
+:}
+
+:{
+addThree :: Int -> Int -> Int -> Int
+addThree a b c = undefined -- undefined :: Int
+:}
+#+END_SRC
+
+** Understanging Functions by Their Type
+Review the type of each of these functions and try to guess how they are
+implemented. Use ~ghci~ to see if you were right. Are there any other ways you
+could have implemented them?
+
+#+BEGIN_SRC haskell
+-- No other way to implement it, cannot produce another `a` or `b` wihout using
+-- the ones given as input
+:{
+swap' :: (a, b) -> (b, a)
+swap' (a, b) = (b, a)
+:}
+
+-- Many other way to implement it so that the type checks, can use any of the
+-- `[a]` in input as output, or `[]` as output because `forall a . [] :: [a]`
+:{
+concat' :: [[a]] -> [a]
+concat' = foldr (<>) []
+-- concat' = head
+-- concat' _ = []
+:}
+
+concat [[1..10], [11..20]]
+concat' [[1..10], [11..20]]
+
+-- No other way to implement it, cannot product another `a` without using the
+-- one given as input
+:{
+id' :: a -> a
+id' x = x
+:}
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+[1,2,3,4,5,6,7,8,9,10]
+#+end_EXAMPLE
+
+** Filling in Type Holes
+Replace ~undefined~ with a value so that you can have the following output
+~spftqgurhvsuwtjxukyblzcmadnbeacfp~
+
+#+BEGIN_SRC haskell
+:{
+mapApply :: [a -> b] -> [a] -> [b]
+mapApply toApply =
+  concatMap (\input -> map ($ input) toApply)
+
+example :: [Int] -> String
+-- example = mapApply undefined
+example = mapApply [lookupLetter] . mapApply offsets
+  where
+    letters :: [Char]
+    letters = ['a'..'z']
+
+    lookupLetter :: Int -> Char
+    lookupLetter n = letters !! n
+
+    offsets :: [Int -> Int]
+    offsets = [rot13, swap10, mixupVowels]
+
+    rot13 :: Int -> Int
+    rot13 n = (n + 13) `rem` 26
+
+    swap10 :: Int -> Int
+    swap10 n
+      | n <= 10 = n + 10
+      | n <= 20 = n - 10
+      | otherwise = n
+
+    mixupVowels :: Int -> Int
+    mixupVowels n =
+      case n of
+        0 -> 8
+        4 -> 14
+        8 -> 20
+        14 -> 0
+        20 -> 4
+        n' -> n'
+:}
+
+
+example [5..15]
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+spftqgurhvsuwtjxukyblzcmadnbeacfp
+#+end_EXAMPLE
