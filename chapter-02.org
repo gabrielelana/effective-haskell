@@ -1,0 +1,203 @@
+#+TITLE: Working with Lists
+
+#+PROPERTY: header-args:haskell :results replace output
+#+PROPERTY: header-args:haskell+ :noweb yes
+#+PROPERTY: header-args:haskell+ :wrap EXAMPLE
+
+* Summary
+- Recursion pattern with private inner function
+- Reducing lists with ~foldr~ vs ~foldl~
+- Transforming lists with ~map~
+- Filtering with ~filter~
+- Building lists with Comprehension
+- Destructuring values with Pattern Matching
+- Destructuring lists
+- Incomplete Patterns
+  #+BEGIN_EXAMPLE
+  # Enable warning for incomplete pattern
+  ghc -Wincomplete-patterns Mains.hs
+  # Turn a warning into an error
+  ghc -Wincomplete-patterns -Werror Mains.hs
+  ghci -Wincomplete-patterns
+  > :set -Wincomplete-patterns
+  > :set -Wno-incomplete-patterns
+  #+END_EXAMPLE
+- How programs are evaluated (lazyness)
+- Folds and infinite lists
+  #+BEGIN_SRC haskell
+  :{
+  findFirst f = foldr findHelper []
+    where findHelper x a
+            | f x = [x]
+            | otherwise = a
+  :}
+
+  findFirst (> 10) [1..]
+
+  -- Works with infinite lists because `foldr` invokes `f` first with `head xs`
+  -- and `foldr f a $ tail xs` if the second argument doesn't get evaluated
+  -- because in `f` you don't needed it, the the computation can stop.
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  [11]
+  #+end_EXAMPLE
+
+  #+BEGIN_SRC haskell
+  :{
+  fib n = fst $ foldr f (0, 1) [1..n]
+    where f _ (n, m) = (m, n + m)
+
+  fibs = [fib n | n <- [0..]]
+  :}
+
+  fib 0
+  fib 8
+  take 10 fibs
+
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  0
+  21
+  [0,1,1,2,3,5,8,13,21,34]
+  #+end_EXAMPLE
+
+* Exerices
+** Reverse a List with Folds
+Implement ~reverse~ of a list using ~foldl~ and ~foldr~. Which one is more efficient
+#+BEGIN_SRC haskell
+-- foldl is more efficient because it adds elememnts from the head of the list
+reversel = foldl (flip (:)) []
+
+reverser = foldr (\x -> (++ [x])) []
+reverser' = foldr (\x -> (flip (++)) [x]) []
+reverser'' = foldr ((flip (++)) . (: [])) []
+
+reversel [1..10]
+reverser [1..10]
+reverser' [1..10]
+reverser'' [1..10]
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+[10,9,8,7,6,5,4,3,2,1]
+[10,9,8,7,6,5,4,3,2,1]
+[10,9,8,7,6,5,4,3,2,1]
+[10,9,8,7,6,5,4,3,2,1]
+#+end_EXAMPLE
+
+** Zipping Lists
+Implement ~zipWith~ with and without using list comprehension. Can you implement ~zipWith~ using ~foldl~
+#+BEGIN_SRC haskell
+:{
+zipWith' f xs ys = reverse $ go xs ys []
+  where go [] _ r = r
+        go _ [] r = r
+        go (x:xs) (y:ys) r = go xs ys $ f x y : r
+:}
+
+:{
+zipWithLC f xs ys = [f (xs !! i) (ys !! i) | i <- [0..n]]
+  where n = min (length xs) (length ys) - 1
+:}
+
+:{
+zipWithF f xs ys = reverse $ foldl f' [] [0..n]
+  where n = min (length xs) (length ys) - 1
+        f' rs i = f (xs !! i) (ys !! i) : rs
+:}
+
+zip' = zipWith' (,)
+zip' [1..5] [5,4..1]
+
+zipLC = zipWithLC (,)
+zipLC [1..5] [5,4..1]
+
+zipF = zipWithF (,)
+zipF [1..5] [5,4..1]
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+[(1,5),(2,4),(3,3),(4,2),(5,1)]
+[(1,5),(2,4),(3,3),(4,2),(5,1)]
+[(1,5),(2,4),(3,3),(4,2),(5,1)]
+#+end_EXAMPLE
+
+* Implementing concatMap
+Try implementing it with ~foldl~ and ~foldr~
+#+BEGIN_SRC haskell
+:{
+concatMapL f = reverse . foldl f' []
+  where f' rs x = (reverse $ f x) <> rs
+:}
+
+-- foldr is better because it preserves the order
+:{
+concatMapR f = foldr f' []
+  where f' x rs = f x <> rs
+:}
+
+concatMapL (take 3) [[1..], [10..], [100..], [1000..]]
+concatMapR (take 3) [[1..], [10..], [100..], [1000..]]
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+[1,2,3,10,11,12,100,101,102,1000,1001,1002]
+[1,2,3,10,11,12,100,101,102,1000,1001,1002]
+#+end_EXAMPLE
+
+* Thinking about Maps and Folds
+#+BEGIN_SRC haskell
+-- With foldr they are the same thing
+x = \f g -> foldr g 0 . map f
+y = \f g -> foldr (g . f) 0
+
+-- To do the same thing as before, `g` must be symmetric
+x' = \f g -> foldl g 0 . map f
+
+-- Here `f` it's applied to the accumulator
+y' = \f g -> foldl (g . f) 0
+
+x (* 3) (+) [1..10]
+y (* 3) (+) [1..10]
+x' (* 3) (+) [1..10]
+y' (* 3) (+) [1..10]
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+165
+165
+165
+44281
+#+end_EXAMPLE
+
+* Folds and Infinite lists
+#+BEGIN_SRC haskell
+:{
+foldl_ f z [] = z
+foldl_ f z (x:xs) = foldl_ f (f z x) xs
+:}
+
+:{
+foldr_ f z [] = z
+foldr_ f z (x:xs) = f x $ foldr_ f z xs
+:}
+
+-- foldl_ (+) 0 [1..]
+-- foldl_ (+) (0 + 1) [2..]
+-- foldl_ (+) (0 + 1 + 2) [3..]
+-- foldl_ (+) (0 + 1 + 2 + 3) [4..]
+-- It will never end and it will accumulate space in memory for large lists
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+1
+#+end_EXAMPLE
