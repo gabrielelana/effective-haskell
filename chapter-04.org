@@ -1,0 +1,481 @@
+#+TITLE: Creating New Types
+
+#+PROPERTY: header-args:haskell :results replace output
+#+PROPERTY: header-args:haskell+ :noweb yes
+#+PROPERTY: header-args:haskell+ :wrap EXAMPLE
+
+* Summary
+- Creating Data Types and Records
+  #+NAME: datatypes
+  #+BEGIN_SRC haskell
+  data Unit = Unit
+  --   ^      ^
+  --   |      data constructor
+  --   type constructor
+
+  x = Unit
+  :t x
+
+  data Switch = Switch Bool
+  --            ^
+  --            data constructor, function with type Bool -> Switch
+  --
+  -- cardinality of Switch = cardinality of single parameter :: Bool
+
+  :t Switch
+  :t Switch True
+
+  data Customer = Customer String String Int Int
+  --              ^
+  --              data constructor with 4 parameters
+  --
+  -- cardinality of Customer = product of cardinalities of all parameters
+  -- that's why is called a `product type`
+
+  gabriele = Customer "Gabriele" "Lana" 10 100
+
+  -- can extract values via pattern matching
+  Customer name surname accountId balance = gabriele
+
+  (name, surname, accountId, balance)
+
+  -- another way to define a product type which let you give names to each field
+  -- are records
+  :{
+  data Customer = Customer
+    { firstName :: String
+    , lastName :: String
+    , accountId :: Int
+    , balance :: Int
+    }
+  :}
+
+  -- still a function
+  :t Customer
+
+  -- but also implicitly defines accessor functions
+  :t firstName
+
+  -- can still do this
+  gabriele = Customer "Gabriele" "Lana" 10 100
+
+  -- but also, plus: you don't need to remember the order of the parameters
+  :{
+  gabriele = Customer
+    { firstName = "Gabriele"
+    , lastName = "Lana"
+    , accountId = 10
+    , balance = 100
+    }
+  :}
+
+  -- and use accessors
+  firstName gabriele
+
+  -- to "update" a record you can do this (creates a record starting from another)
+  :{
+  alberto = gabriele { firstName = "Alberto"
+                     , lastName = "Galimberti"
+                     }
+  :}
+  firstName gabriele
+  firstName alberto
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  x :: Unit
+  Switch :: Bool -> Switch
+  Switch True :: Switch
+  ("Gabriele","Lana",10,100)
+  Customer :: String -> String -> Int -> Int -> Customer
+  firstName :: Customer -> String
+  Gabriele
+  Gabriele
+  Alberto
+  #+end_EXAMPLE
+  - Creating Bindings for All Record Fields with Wildcards
+    #+BEGIN_SRC haskell
+    :set -XRecordWildCards
+
+    :{
+    data Customer = Customer
+      { firstName :: String
+      , lastName :: String
+      , accountId :: Int
+      , balance :: Int
+      }
+
+    gabriele = Customer
+      { firstName = "Gabriele"
+      , lastName = "Lana"
+      , accountId = 10
+      , balance = 100
+      }
+    :}
+
+    -- allows you take all of the fields of a record an turn them into variables
+
+    let Customer {..} = gabriele in firstName
+    --                              ^
+    --                              firstName is not the function but the value of the field
+
+    -- can be used also to create records starting from variables in scope
+    :{
+    alberto = let firstName = "Alberto"
+                  lastName = "Galimberti"
+                  accountId = 42
+                  balance = 16
+              in Customer {..}
+    :}
+    firstName alberto
+
+    -- they can be combined
+    :{
+    alberto = let Customer {..} = gabriele in Customer { firstName = "Alberto"
+                                                       , lastName = "Galimberti"
+                                                       , ..
+                                                       }
+    :}
+    firstName alberto
+
+    -- works also in pattern matching
+    let Customer { firstName = "Alberto", .. } = alberto in lastName
+    #+END_SRC
+
+    #+RESULTS:
+    #+begin_EXAMPLE
+    Gabriele
+    Alberto
+    Alberto
+    Galimberti
+    #+end_EXAMPLE
+  - Dealing with Duplicate Record Fields
+- Creating Sum Types
+  #+BEGIN_SRC haskell
+  data Answer = Yes | No
+  --            ^     ^
+  --            |     data constructor with one inhabitant
+  --            data constructor with one inhabitant
+  --
+  -- cardinality of Answer is the `sum` of the cardinality of the alternatives
+
+  -- can create sum types with data
+  :{
+  data ContactMethod = Email String
+                     | TextMessage String
+                     | Mail String String String Int
+  :}
+
+  email = Email "gabriele.lana@gmail.com"
+  :t email
+
+  textMessage = TextMessage "+39 340 3498271"
+  :t textMessage
+
+  -- can extract values through pattern matching
+  :{
+  confirmContact :: ContactMethod -> String
+  confirmContact contact =
+    case contact of
+      TextMessage number -> "Okay, I'll send you a text message to: " <> number
+      Email address -> "Okay, I'll send you an e-mail to: " <> address
+      -- {} will represent all the parameters without extension, I didn't know
+      Mail {} -> "Okay, I'll send you a mail to your address"
+  :}
+  confirmContact email
+
+  -- Avoid to sum "naked" records but but sum records marked with data constructors
+
+  -- No, because `customerName emplyee` where `employee :: Emplyee` will raise
+  -- a runtime error
+  :{
+  data Person = Customer { customerName :: String
+                         , customerBalance :: String
+                         }
+              | Employee { employeeName :: String
+                         , employeeManagerName :: String
+                         , employeeSalary :: String
+                         }
+  :}
+
+  -- Yes
+  :{
+  data Customer = Customer { customerName :: String
+                           , customerBalance :: String
+                           }
+  data Employee = Employee { employeeName :: String
+                           , employeeManagerName :: String
+                           , employeeSalary :: String
+                           }
+  data Person = CustomerT Customer
+              | EmployeeT Employee
+  :}
+
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  email :: ContactMethod
+  textMessage :: ContactMethod
+  Okay, I'll send you an e-mail to: gabriele.lana@gmail.com
+  #+end_EXAMPLE
+- Creating Polymorphic Types
+  #+BEGIN_SRC haskell
+  data Return a = Some a | None
+  --   ^      ^
+  --   |      type parameter
+  --   type constructor
+  #+END_SRC
+- Creating Inductively Defined Data Structures
+  #+BEGIN_SRC haskell
+  data Peano = Z | S Peano
+  --                 ^
+  --                 type Peano is defined using itself = recursive type or inductively defined
+
+  -- another example
+  data List a = Empty | Cons a (List a) deriving Show
+
+  -- TODO: implement the following functions
+
+  :{
+  listFoldr :: (a -> b -> b) -> b -> List a -> b
+  listFoldr f b Empty = b
+  listFoldr f b (Cons a l) = f a $ listFoldr f b l
+
+  listFoldl :: (b -> a -> b) -> b -> List a -> b
+  listFoldl f b Empty = b
+  listFoldl f b (Cons a l) = listFoldl f (f b a) l
+
+  listHead :: List a -> Maybe a
+  listHead Empty = Nothing
+  listHead (Cons a _) = Just a
+
+  listTail :: List a -> List a
+  listTail Empty = Empty
+  listTail (Cons _ l) = l
+
+  listReverse :: List a -> List a
+  listReverse l = go l Empty
+    where go Empty r = r
+          go (Cons a l) r = go l (Cons a r)
+
+  listMap :: (a -> b) -> List a -> List b
+  listMap _ Empty = Empty
+  listMap f (Cons a l) = Cons (f a) (listMap f l)
+  :}
+
+  listReverse (Cons 1 (Cons 2 (Cons 3 Empty)))
+  listMap (+ 1) (Cons 1 (Cons 2 (Cons 3 Empty)))
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  Cons 3 (Cons 2 (Cons 1 Empty))
+  Cons 2 (Cons 3 (Cons 4 Empty))
+  #+end_EXAMPLE
+
+- Bulding a Calculator
+- Functions as Values
+- Creating Type Aliases
+  #+BEGIN_SRC haskell
+  -- one of the common ways to use alias is to give names to some partially applied types
+  type Error = String
+  type Result a = Either Error
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  #+end_EXAMPLE
+* Exercises
+** Planting Trees
+#+BEGIN_SRC haskell
+-- given the following definition of a binary tree
+data BinaryTree a = Leaf | Branch (BinaryTree a) a (BinaryTree a) deriving Show
+
+-- implement the following functions
+
+
+:{
+appendBlocks :: String -> String -> String
+appendBlocks "" rs = rs
+appendBlocks ls "" = ls
+appendBlocks ls rs = let lls = lines ls
+                         lrs = lines rs
+                     in go lls (length $ head lls) lrs (length $ head lrs)
+  where go (l:ls) ll (r:rs) lr = l <> r <> "\n" <> go ls ll rs lr
+        go [] ll (r:rs) lr = replicate ll ' ' <> r <> "\n" <> go [] ll rs lr
+        go (l:ls) ll [] lr = l <> " " <> replicate lr ' ' <> "\n" <> go ls ll [] lr
+        go [] _ [] _ = ""
+:}
+
+-- turn a binary tree of strings into a pretty-printed string
+:{
+showStringTree :: BinaryTree String -> String
+showStringTree (Branch tl s tr) = let ls = showStringTree tl
+                                      rs = showStringTree tr
+                                      bodyLine = ls `appendBlocks` replicate (length s) ' ' `appendBlocks` rs
+                                      headLine = replicate ((length (head $ lines ls))) ' '
+                                                 <> s <>
+                                                 replicate ((length (head $ lines rs))) ' '
+                                  in headLine <> "\n" <> bodyLine
+showStringTree Leaf = "_"
+:}
+
+-- add a new integer into a binary tree of integers
+:{
+addElementToIntTree :: BinaryTree Int -> Int -> BinaryTree Int
+addElementToIntTree (Branch tl tn tr) n
+  | n >= tn = Branch tl tn $ addElementToIntTree tr n
+  | otherwise = Branch (addElementToIntTree tl n) tn tr
+addElementToIntTree Leaf n = Branch Leaf n Leaf
+:}
+
+-- check to see if an int value exists in a binary tree of ints
+:{
+doesIntExists :: BinaryTree Int -> Int -> Bool
+doesIntExists (Branch tl tn tr) n
+  | tn == n = True
+  | otherwise = doesIntExists tl n || doesIntExists tr n
+doesIntExists Leaf _ = False
+:}
+
+showStringTree $ Branch Leaf "aaa" Leaf
+showStringTree $ Branch (Branch Leaf "bbb" Leaf) "aaa" Leaf
+showStringTree $ Branch Leaf "aaa" (Branch Leaf "bbb" Leaf)
+showStringTree $ Branch (Branch Leaf "bbb" Leaf) "aaa" (Branch Leaf "ccc" Leaf)
+
+tree = Leaf `addElementToIntTree` 10 `addElementToIntTree` 5 `addElementToIntTree` 20
+tree
+
+doesIntExists tree 10
+doesIntExists tree 11
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+ aaa \n_   _\n
+     aaa \n bbb    _\n_   _      \n
+ aaa     \n_    bbb \n    _   _\n
+     aaa     \n bbb     ccc \n_   _    _   _\n
+Branch (Branch Leaf 5 Leaf) 10 (Branch Leaf 20 Leaf)
+True
+False
+#+end_EXAMPLE
+** Eval Division By Zero
+#+NAME: expression
+#+BEGIN_SRC haskell
+:{
+data Expr = Lit Int
+          | Sub Expr Expr
+          | Add Expr Expr
+          | Mul Expr Expr
+          | Div Expr Expr
+          deriving Show
+
+parse :: String -> Expr
+parse = fst . parseE
+  where parseE :: String -> (Expr, String)
+        parseE (opL : s)
+          | opL `elem` opsL = let (e1, s1) = parseE $ trim s
+                                  (e2, s2) = parseE $ trim s1
+                              in ((op opL) e1 e2, s2)
+          | otherwise = let (sn, s1) = span Data.Char.isNumber (opL : s)
+                        in (Lit $ read sn, s1)
+        opsL = ['+', '-', '*', '/']
+        op '-' = Sub
+        op '+' = Add
+        op '*' = Mul
+        op '/' = Div
+        trim = dropWhile Data.Char.isSpace
+
+eval :: Expr -> Int
+eval (Add e1 e2) = eval e1 + eval e2
+eval (Sub e1 e2) = eval e1 - eval e2
+eval (Mul e1 e2) = eval e1 * eval e2
+eval (Div e1 e2) = eval e1 `div` eval e2
+eval (Lit n) = n
+:}
+#+END_SRC
+
+#+RESULTS: expression
+#+begin_EXAMPLE
+#+end_EXAMPLE
+
+
+#+BEGIN_SRC haskell
+<<expression>>
+
+-- write a new version of `eval` for the calculator named `safeEval` that will
+-- return an error if the user tries to divide by zero
+
+:{
+-- no changes to type Expr definition, no need of any other functions
+
+safeEval :: Expr -> Either String Int
+safeEval e = case e of
+               (Lit n) -> Right n
+               (Sub e1 e2) -> andThen (safeOp (-)) (safeEval e1) (safeEval e2)
+               (Add e1 e2) -> andThen (safeOp (+)) (safeEval e1) (safeEval e2)
+               (Mul e1 e2) -> andThen (safeOp (*)) (safeEval e1) (safeEval e2)
+               (Div e1 e2) -> andThen (checkOp (\_ m -> m == 0) "Division by Zero" div) (safeEval e1) (safeEval e2)
+  where andThen :: (Int -> Int -> Either String Int) -> Either String Int -> Either String Int -> Either String Int
+        andThen f (Right n) (Right m) = f n m
+        andThen _ (Left e) _ = Left e
+        andThen _ _ (Left e) = Left e
+        safeOp :: (Int -> Int -> Int) -> Int -> Int -> Either String Int
+        safeOp f n m = Right $ f n m
+        checkOp :: (Int -> Int -> Bool) -> String -> (Int -> Int -> Int) -> Int -> Int -> Either String Int
+        checkOp p e f n m = if p n m then Left e else Right $ f n m
+:}
+
+safeEval $ parse "/ 5 3"
+safeEval $ parse "+ 10 / 5 0"
+safeEval $ parse "+ 10 * 5 0"
+safeEval $ parse "+ 10 * 5 2"
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Right 1
+Left "Division by Zero"
+Right 10
+Right 20
+20
+#+end_EXAMPLE
+
+** Calculator Pretty Print
+#+BEGIN_SRC haskell
+<<expression>>
+
+-- write a new function to pretty print an Expr
+:{
+prettyPrint :: Expr -> String
+prettyPrint e = pp e 0 <> " = " <> show (eval e)
+  where pp (Add e1 e2) n = ppO " + " e1 e2 n
+        pp (Sub e1 e2) n = ppO " - " e1 e2 n
+        pp (Mul e1 e2) n = ppO " * " e1 e2 n
+        pp (Div e1 e2) n = ppO " / " e1 e2 n
+        pp (Lit n) _ = show n
+        ppO op e1 e2 n = wrap n $ pp e1 (n + 1) <> op <> pp e2 (n + 1)
+        wrap 0 s = s
+        wrap _ s = "(" <> s <> ")"
+:}
+
+prettyPrint $ Lit 5 `Add` Lit 10
+prettyPrint $ Lit 5 `Add` (Lit 10 `Div` Lit 2)
+prettyPrint $ Lit 14 `Mul` (Lit 5 `Add` (Lit 10 `Div` Lit 2))
+"5 + 10 = 15" == (prettyPrint $ Lit 5 `Add` Lit 10)
+"5 + (10 / 2) = 10" == (prettyPrint $ Lit 5 `Add` (Lit 10 `Div` Lit 2))
+"14 * (5 + (10 / 2)) = 140" == (prettyPrint $ Lit 14 `Mul` (Lit 5 `Add` (Lit 10 `Div` Lit 2)))
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+5 + 10 = 15
+5 + (10 / 2) = 10
+14 * (5 + (10 / 2)) = 140
+True
+True
+True
+#+end_EXAMPLE
