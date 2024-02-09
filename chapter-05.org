@@ -1,0 +1,89 @@
+#+TITLE: Creating and Structuring Haskell Projects
+
+#+PROPERTY: header-args:haskell :results replace output
+#+PROPERTY: header-args:haskell+ :noweb yes
+#+PROPERTY: header-args:haskell+ :wrap EXAMPLE
+
+* Summary
+- Hiding data constructors and exporting smart constructors
+- Phantom types not exported required to force API usage
+  #+BEGIN_SRC haskell :eval never
+  data Authenticated
+  data Unauthenticated
+
+  data User isAuthenticated = User
+    { userName :: String
+    , userPassword :: String
+    , userEmailAddress :: String
+    }
+
+  -- initially User is not authenticated
+  lookupUser :: String -> Maybe (User Unauthenticated)
+  lookupUser = undefined
+
+  -- do not export userEmailAddress accessor but replace with
+  getUserEmailAddress :: User Authenticated -> String
+  getUserEmailAddress = userEmailAddress
+
+  -- only by providing a password you get authenticated
+  authenticated :: User Unauthenticated -> String -> Maybe (User Authenticated)
+  authenticated User{..} password
+    | userPassword == password = Just User{..}
+    | otherwise = Nothing
+  #+END_SRC
+- Re-Exporting Code from Other Modules
+  #+BEGIN_SRC haskell :eval never
+  module HaskellBook.Examples -- the only public module in cabal file
+    ( module HaskellBook.Examples.UserInfo  -- export everything imported from the module
+    )
+  where
+
+  import HaskellBook.Examples.UserInfo -- need to import the module
+  #+END_SRC
+
+  #+BEGIN_SRC haskell :eval never
+  module HaskellBook.Examples
+    ( module HaskellBook.Examples.UserInfo
+    , module CreatingModules -- need to use the alias when imported with an alias
+                             -- will not export `testMessage` because hidden on import
+    )
+  where
+
+  import HaskellBook.Examples.UserInfo -- need to import the module
+  import HaskellBook.Examples.Introduction.CreatingModules
+    as CreatingModules hiding (testMessage)
+  #+END_SRC
+- Documenting Modules with Haddock
+  #+BEGIN_SRC bash :eval never
+  cabal haddock
+  #+END_SRC
+
+  Haddock comments are normal Haskell comments that start with a pipe character
+  #+BEGIN_SRC haskell :eval never
+  -- |
+  -- This is part of the module documentation for Haddock
+  module HaskellBook.Examples where
+  #+END_SRC
+
+  #+BEGIN_SRC haskell :eval never
+  {- |
+  This is part of the module documentation for Haddock
+  -}
+  module HaskellBook.Examples where
+  #+END_SRC
+
+With ~>>>~ you tell Haddock to render the line as though it where typed into a
+REPL and the next line as output from the REPL.
+  #+BEGIN_SRC haskell :eval never
+  {-|
+  A test message
+
+  >>> testMessage
+  "Hello!!!"
+  -}
+  testMessage :: String
+  testMessage = strongMessage "Hello"
+  #+END_SRC
+
+* Exercises
+TODO
