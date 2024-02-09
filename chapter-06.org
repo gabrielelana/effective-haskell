@@ -1,0 +1,512 @@
+#+TITLE: Type Classes
+
+#+PROPERTY: header-args:haskell :results replace output
+#+PROPERTY: header-args:haskell+ :noweb yes
+#+PROPERTY: header-args:haskell+ :wrap EXAMPLE
+
+* Summary
+- Using Ad Hoc Polymorphism with Type classes
+  #+BEGIN_SRC haskell
+  -- How can you write a function to remove duplicates from a list of generic
+  -- elements? You need to rely on the user to provide a function to compare those
+  -- elements `a -> a -> Bool`
+  :{
+  unique :: (a -> a -> Bool) -> [a] -> [a]
+  unique _ [] = []
+  unique f (x:xs) = x : unique f (filter (not . f x) xs)
+  :}
+
+  unique (==) [1, 2, 1, 3, 3, 4, 5, 1]
+
+  -- Works but doesn't scale, more stuff you need to do on a generic `a` and more
+  -- functions you need to ask to the user
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  [1,2,3,4,5]
+  #+end_EXAMPLE
+
+  With type classes you can give a name to a group of related functions and then
+  you can provide an implementation of those functions for different types.
+- Type class for ~Natural~
+  #+BEGIN_SRC haskell
+  :{
+  class Equality n where
+    equal :: n -> n -> Bool
+
+  instance Equality Int where
+    equal = (==)
+
+  unique :: Equality a => [a] -> [a]
+  unique [] = []
+  unique (x:xs) = x : unique (filter (not . equal x) xs)
+  :}
+
+  unique [1, 2, 1, 3, 3, 4, 5, 1] :: [Int]
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  [1,2,3,4,5]
+  #+end_EXAMPLE
+- Composing Type Classes
+  #+BEGIN_SRC haskell
+  :{
+  class Equality n where
+    equal :: n -> n -> Bool
+
+  class ToString n where
+    toString :: n -> String
+
+  -- To implement Natural type class for a type you also need to implement
+  -- `Equality` and `ToString`
+  class (Equality n, ToString n) => Natural n where
+    add :: n -> n -> n
+    mul :: n -> n -> n
+    addIdentity :: n
+    mulIdentity :: n
+  :}
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  #+end_EXAMPLE
+- Creating Default Implementations and Minimal Definitions
+  #+BEGIN_SRC haskell :eval never
+  data Ordering = LT | EQ | GT
+
+  instance Show Ordering where
+    show LT = "LT"
+    show EQ = "EQ"
+    show GT = "GT"
+
+  class Eq a => Ordering a where
+    compare :: a -> a -> Ordering
+    (<) :: a -> a -> Bool
+    (<=) :: a -> a -> Bool
+    (>) :: a -> a -> Bool
+    (>=) :: a -> a -> Bool
+    max :: a -> a -> a
+    min :: a -> a -> a
+
+  -- NOTE: we can implement all the functions in Ordering only based on `compare`
+  -- or `<=`, we can provide default implementations in the class definition and a
+  -- minimal set of function the user need to implement separated by `|`
+
+  class Eq a => Ordering a where
+    compare :: a -> a -> Ordering
+    -- Can be implemented based on `<=`
+    compare a b
+      | a == b = EQ
+      | a <= b = LT
+      | otherwise = GT
+    (<=) :: a -> a -> Bool
+    -- Can be implemented based on `compare`
+    (<=) a b = case compare a b of
+                 GT => False
+                 _ => True
+    -- ... same as the other functions, therefore either you implement `compare`
+    -- or `<=`
+    {-# MINIMAL compare | (<=) #-}
+  #+END_SRC
+- Default Implementation only when an Instance of a Type Class is provided
+  #+BEGIN_SRC haskell
+  :set -XDefaultSignatures
+
+  :{
+  -- NOTE: no constraints on `a` in class definition header
+  class Redacted a where
+    redacted :: a -> String
+    -- only when `a` has an instance of `Show` then we can provide a default implementation
+    default redacted :: Show a => a -> String
+    redacted = show
+
+  data Username = Username String
+  data Password = Password String
+
+  instance Show Username where
+    show (Username s) = s
+
+  instance Redacted Username -- ok, implements Show -> we have a default implementation
+
+  -- error, `No instance for (Show Password)` -> no default implementation for `Redacted`
+  -- instance Redacted Password
+
+  instance Redacted Password where
+    redacted _ = "???"
+  :}
+
+  redacted $ Username "Gabriele"
+  redacted $ Password "nosecrets"
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  Gabriele
+  ???
+  #+end_EXAMPLE
+
+- Specifying Type Class Instances with Type Applications
+  TODO
+
+- Wrapping Types with Newtype
+  TODO
+
+- Understanding Higher Kinded Types and Polymorphism
+  TODO
+
+- Deriving Instances (stock)
+  - Don't need language extensions
+  - Works only for (~Eq~, ~Ord~, ~Ix~, ~Show~, ~Read~, ~Enum~, ~Bounded~)
+  - Works only if the underlying types implement the type class
+  - It's not transitive, see ~CustomerWithID~, cannot implement ~Show~ when one
+    of the underglying types doesn't implement ~Show~ even if the type could
+    derive stock ~Show~.
+  #+BEGIN_SRC haskell
+  :{
+  data Customer = Customer
+    { name :: String
+    , surname :: String
+    , email :: String
+    } deriving (Show, Eq, Ord)
+
+  newtype UserID = UserID String deriving Show
+  :}
+
+  UserID "7246daaf-bf40-4528-a9fe-923cb221cab3"
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  UserID "7246daaf-bf40-4528-a9fe-923cb221cab3"
+  #+end_EXAMPLE
+
+  #+BEGIN_SRC haskell
+  :{
+  newtype UserID = UserID String
+
+  data CustomerWithID = CustomerWithID
+    { id :: UserID
+    , name :: String
+    , surname :: String
+    , email :: String
+    } deriving Show
+  :}
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  <interactive>:11:14: error:
+      • No instance for (Show UserID)
+          arising from the first field of ‘CustomerWithID’ (type ‘UserID’)
+        Possible fix:
+          use a standalone 'deriving instance' declaration,
+            so you can specify the instance context yourself
+      • When deriving the instance for (Show CustomerWithID)
+  #+end_EXAMPLE
+
+- Deriving Instances (newtype)
+  - Can derive for newtypes non stock type classes that are implemented by the
+    underlying type
+  - Needs ~GeneralizedNewtypeDeriving~ language extension
+  #+BEGIN_SRC haskell
+  :set -XGeneralizedNewtypeDeriving
+
+  :{
+  newtype EUR = EUR { getCents :: Integer }
+    deriving (Eq, Ord, Show, Enum, Num, Real, Integral)
+  :}
+
+  EUR 200 + EUR 10
+  EUR 200 * 2
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  EUR {getCents = 210}
+  EUR {getCents = 400}
+  #+end_EXAMPLE
+
+- Deriving Instances (via)
+  - Can derive the implementation of a typeclass using the implementation of the
+    same typeclass for a type that is /representationally equal/
+  - Needs ~DerivingVia~ language extension
+  #+BEGIN_SRC haskell
+  :set -XKindSignatures
+  :set -XDerivingVia
+  import Data.Kind
+
+  :{
+  -- Define a type with a certain structure
+  newtype First (f :: Type -> Type) (a :: Type) = First (f a) deriving Show
+
+  -- Define some instances
+  instance Semigroup (First Maybe a) where
+    l@(First (Just _)) <> _ = l
+    _ <> r = r
+
+  instance Monoid (First Maybe a) where
+    mempty = First Nothing
+  :}
+
+  (First $ Just [1,2,3]) <> (First $ Just [3,4,5])
+  (First $ Nothing) <> (First $ Just [3,4,5])
+  (First $ Nothing) <> (First $ Nothing)
+
+  :{
+  -- When you have a type that is representationlly equivalent
+  newtype MyMaybe a = MyMaybe (Maybe a)
+    deriving Show
+    -- You can derive via it those instances
+    deriving (Semigroup, Monoid) via (First Maybe a)
+  :}
+
+  (MyMaybe $ Just [1,2,3]) <> (MyMaybe $ Just [3,4,5])
+  (MyMaybe $ Nothing) <> (MyMaybe $ Just [3,4,5])
+  (MyMaybe $ Nothing) <> (MyMaybe $ Nothing)
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  First (Just [1,2,3])
+  First (Just [3,4,5])
+  First Nothing
+  MyMaybe (Just [1,2,3])
+  MyMaybe (Just [3,4,5])
+  MyMaybe Nothing
+  #+end_EXAMPLE
+
+- Deriving Instances (any)
+  - Can derive a default implmentation without the need to write an empty instance
+  - Needs ~DeriveAnyClass~ language extension
+  #+BEGIN_SRC haskell
+  :set -XDefaultSignatures
+  :set -XDeriveAnyClass
+
+  :{
+  class Redacted a where
+    redacted :: a -> String
+    default redacted :: Show a => a -> String
+    redacted = show
+
+  newtype UserName = UserName String deriving (Show, Redacted)
+  :}
+
+  redacted $ UserName "gabrielelana"
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  <interactive>:12:52: warning: [-Wderiving-defaults]
+      • Both DeriveAnyClass and GeneralizedNewtypeDeriving are enabled
+        Defaulting to the DeriveAnyClass strategy for instantiating Redacted
+      • In the newtype declaration for ‘UserName’
+      Suggested fix:
+        Use DerivingStrategies
+        to pick a different strategy
+  UserName \"gabrielelana\"
+  #+end_EXAMPLE
+
+- Deriving Strategies
+  #+BEGIN_SRC haskell
+  :set -XDefaultSignatures
+  :set -XDeriveAnyClass
+  :set -XDerivingStrategies
+
+  :{
+  class Redacted a where
+    redacted :: a -> String
+    default redacted :: Show a => a -> String
+    redacted = show
+
+  newtype UserName = UserName String
+    deriving stock Show
+    deriving anyclass Redacted
+
+  newtype Password = Password String
+
+  instance Show Password where
+    show (Password d) = "<redacted>"
+
+  newtype Secret = Secret Password
+    deriving newtype Show
+    deriving anyclass Redacted
+
+  data User = User
+    { username :: UserName
+    , password :: Password
+    } deriving Show
+      deriving anyclass Redacted
+  :}
+
+  -- Will print `UserName "gabrielelana"` because Show is derived `stock` and
+  -- the default implementation of `Redacted` derived `anyclass` will use `Show`
+  redacted $ UserName "gabrielelana"
+
+  -- Will print `<redacted>` because Show is derived `newtype` from `Password`
+  -- which will print `<redacted>`
+  redacted $ Secret (Password "nosecrets")
+
+  redacted $ User (UserName "gabrielelana") (Password "nosecrets")
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  UserName \"gabrielelana\"
+  <redacted>
+  User {username = UserName \"gabrielelana\", password = <redacted>}
+  #+end_EXAMPLE
+
+* Exercises
+- Writing Type Classes Representing Emptiness
+  #+BEGIN_SRC haskell
+  :{
+  import Prelude hiding (null)
+
+  class Nullable a where
+    isNull :: a -> Bool
+    null :: a
+
+  -- Create an instance of Nullable for the following types
+
+  -- `Maybe a` where `a` is Nullable
+  instance Nullable a => Nullable (Maybe a) where
+    isNull (Just a) = isNull a
+    isNull Nothing = True
+
+    null = Nothing
+
+  -- `(a, b)` where `a` and `b` are Nullable
+  instance (Nullable a, Nullable b) => Nullable (a, b) where
+    isNull (a, b) = isNull a && isNull b
+    null = (null, null)
+
+  -- `[a]`
+  instance Nullable [a] where
+    isNull [] = True
+    isNull _ = False
+    null = []
+  :}
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  #+end_EXAMPLE
+- Add a Default Null Test
+  #+BEGIN_SRC haskell
+  import Prelude hiding (null)
+
+  -- Given an Eq constraint on Nullable create a default implementation of isNull
+  :{
+  class Eq a => Nullable a where
+    isNull :: a -> Bool
+    isNull = (==) null
+
+    null :: a
+
+  instance Eq a => Nullable [a] where
+    null = []
+  :}
+
+  isNull []
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  True
+  #+end_EXAMPLE
+- Deriving Nullable
+  #+BEGIN_SRC haskell
+  :set -XKindSignatures
+  :set -XDerivingVia
+  import Data.Kind
+
+  :{
+  class Nullable a where
+    isNull :: a -> Bool
+    null :: a
+
+  instance Nullable [a] where
+    isNull [] = True
+    isNull _ = False
+    null = []
+
+  instance Nullable (Maybe a) where
+    isNull Nothing = True
+    isNull _ = False
+    null = Nothing
+
+  newtype Shallow (f :: Type -> Type) (a :: Type) = Shallow (f a)
+
+  instance Nullable (Shallow Maybe a) where
+    isNull (Shallow Nothing) = True
+    isNull _ = False
+    null = Shallow Nothing
+
+  instance Nullable (Shallow [] a) where
+    isNull (Shallow []) = True
+    isNull _ = False
+    null = Shallow []
+
+  newtype Deep (f :: Type -> Type) (a :: Type) = Deep (f a)
+
+  instance Nullable a => Nullable (Deep Maybe a) where
+    isNull (Deep Nothing) = True
+    isNull (Deep (Just a)) = isNull a
+    null = Deep Nothing
+
+  instance Nullable a => Nullable (Deep [] a) where
+    isNull (Deep []) = True
+    isNull (Deep xs) = all isNull xs
+    null = Deep []
+
+  newtype W1 = W1 (Maybe [Int])
+    deriving Nullable via (Shallow Maybe [Int])
+
+  newtype W2 = W2 (Maybe [Int])
+    deriving Nullable via (Deep Maybe [Int])
+
+  newtype W3 = W3 ([Maybe Int])
+    deriving Nullable via (Shallow [] (Maybe Int))
+
+  newtype W4 = W4 ([Maybe Int])
+    deriving Nullable via (Deep [] (Maybe Int))
+  :}
+
+  -- Shallow Maybe [Int]
+  False == isNull (W1 (Just []))
+  True == isNull (W1 Nothing)
+
+  -- Deep Maybe [Int]
+  True == isNull (W2 Nothing)
+  True == isNull (W2 (Just []))
+  False == isNull (W2 (Just [1]))
+
+  -- Shallow [Maybe Int]
+  True == isNull (W3 [])
+  False == isNull (W3 [Nothing])
+  False == isNull (W3 [Just 1])
+
+  -- Deep [Maybe Int]
+  True == isNull (W4 [])
+  True == isNull (W4 [Nothing])
+  True == isNull (W4 [Nothing, Nothing])
+  False == isNull (W4 [Just 1])
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  True
+  True
+  True
+  True
+  True
+  True
+  True
+  True
+  True
+  True
+  True
+  True
+  #+end_EXAMPLE
