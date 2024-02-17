@@ -220,12 +220,14 @@
 
   EUR 200 + EUR 10
   EUR 200 * 2
+  EUR 200
   #+END_SRC
 
   #+RESULTS:
   #+begin_EXAMPLE
   EUR {getCents = 210}
   EUR {getCents = 400}
+  EUR {getCents = 200}
   #+end_EXAMPLE
 
 - Deriving Instances (via)
@@ -404,6 +406,14 @@
     isNull = (==) null
 
     null :: a
+
+  -- Alternative with constraint only for isNull
+
+  -- class Nullable a where
+  --   default Eq a => isNull :: a -> Bool
+  --   isNull = (==) null
+  --
+  --   null :: a
 
   instance Eq a => Nullable [a] where
     null = []

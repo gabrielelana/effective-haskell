@@ -76,10 +76,14 @@ reverser = foldr (\x -> (++ [x])) []
 reverser' = foldr (\x -> (flip (++)) [x]) []
 reverser'' = foldr ((flip (++)) . (: [])) []
 
+reversex l = foldr (\x f -> f . (x : )) id l []
+
 reversel [1..10]
 reverser [1..10]
 reverser' [1..10]
 reverser'' [1..10]
+
+reversex [1..10]
 #+END_SRC
 
 #+RESULTS:
@@ -88,16 +92,25 @@ reverser'' [1..10]
 [10,9,8,7,6,5,4,3,2,1]
 [10,9,8,7,6,5,4,3,2,1]
 [10,9,8,7,6,5,4,3,2,1]
+[10,9,8,7,6,5,4,3,2,1]
 #+end_EXAMPLE
 
 ** Zipping Lists
-Implement ~zipWith~ with and without using list comprehension. Can you implement ~zipWith~ using ~foldl~
+Implement ~zipWith~ with and without using list comprehension. Can you implement
+~zipWith~ using ~foldl~
 #+BEGIN_SRC haskell
 :{
 zipWith' f xs ys = reverse $ go xs ys []
   where go [] _ r = r
         go _ [] r = r
         go (x:xs) (y:ys) r = go xs ys $ f x y : r
+:}
+
+:{
+zipWith'' f = go
+  where go [] _ = []
+        go _ [] = []
+        go (x:xs) (y:ys) = (f x y) : go xs ys
 :}
 
 :{
@@ -111,6 +124,21 @@ zipWithF f xs ys = reverse $ foldl f' [] [0..n]
         f' rs i = f (xs !! i) (ys !! i) : rs
 :}
 
+:{
+zipWithF' f xs ys = reverse . fst $ foldl f' ([], xs) ys
+  where f' (l, xs) y = case xs of
+                         [] -> (l, [])
+                         (x:xs) -> (f x y : l, xs)
+:}
+
+:{
+zipWithF'' f xs ys = ($ []) . fst $ foldl f' (id, xs) ys
+  where f' (l, xs) y = case xs of
+                         [] -> (l, [])
+                         (x:xs) -> (l . (f x y :), xs)
+:}
+
+
 zip' = zipWith' (,)
 zip' [1..5] [5,4..1]
 
@@ -119,6 +147,12 @@ zipLC [1..5] [5,4..1]
 
 zipF = zipWithF (,)
 zipF [1..5] [5,4..1]
+
+zipF' = zipWithF' (,)
+zipF' [1..] [1..10]
+
+zipF'' = zipWithF'' (,)
+zipF'' [1..] [1..10]
 #+END_SRC
 
 #+RESULTS:
@@ -126,6 +160,8 @@ zipF [1..5] [5,4..1]
 [(1,5),(2,4),(3,3),(4,2),(5,1)]
 [(1,5),(2,4),(3,3),(4,2),(5,1)]
 [(1,5),(2,4),(3,3),(4,2),(5,1)]
+[(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10)]
+[(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10)]
 #+end_EXAMPLE
 
 * Implementing concatMap
@@ -133,21 +169,27 @@ Try implementing it with ~foldl~ and ~foldr~
 #+BEGIN_SRC haskell
 :{
 concatMapL f = reverse . foldl f' []
-  where f' rs x = (reverse $ f x) <> rs
+  where f' rs x = (reverse $ f x) ++ rs
+:}
+
+:{
+concatMapL' f = foldl (\acc x -> acc ++ f x) []
 :}
 
 -- foldr is better because it preserves the order
 :{
 concatMapR f = foldr f' []
-  where f' x rs = f x <> rs
+  where f' x rs = f x ++ rs
 :}
 
 concatMapL (take 3) [[1..], [10..], [100..], [1000..]]
 concatMapR (take 3) [[1..], [10..], [100..], [1000..]]
+concatMapL' (take 3) [[1..], [10..], [100..], [1000..]]
 #+END_SRC
 
 #+RESULTS:
 #+begin_EXAMPLE
+[1,2,3,10,11,12,100,101,102,1000,1001,1002]
 [1,2,3,10,11,12,100,101,102,1000,1001,1002]
 [1,2,3,10,11,12,100,101,102,1000,1001,1002]
 #+end_EXAMPLE

@@ -187,7 +187,7 @@
 
   -- Avoid to sum "naked" records but but sum records marked with data constructors
 
-  -- No, because `customerName emplyee` where `employee :: Emplyee` will raise
+  -- No, because `customerName employee` where `employee :: Emplyee` will raise
   -- a runtime error
   :{
   data Person = Customer { customerName :: String
@@ -211,7 +211,6 @@
   data Person = CustomerT Customer
               | EmployeeT Employee
   :}
-
   #+END_SRC
 
   #+RESULTS:
@@ -295,7 +294,6 @@ data BinaryTree a = Leaf | Branch (BinaryTree a) a (BinaryTree a) deriving Show
 
 -- implement the following functions
 
-
 :{
 appendBlocks :: String -> String -> String
 appendBlocks "" rs = rs
@@ -362,6 +360,8 @@ Branch (Branch Leaf 5 Leaf) 10 (Branch Leaf 20 Leaf)
 True
 False
 #+end_EXAMPLE
+
+
 ** Eval Division By Zero
 #+NAME: expression
 #+BEGIN_SRC haskell
