@@ -1,0 +1,332 @@
+#+TITLE: Understanding IO
+
+#+PROPERTY: header-args:haskell :results replace output
+#+PROPERTY: header-args:haskell+ :noweb yes
+#+PROPERTY: header-args:haskell+ :wrap EXAMPLE
+
+* Summary
+- Talking About IO.
+  - In the book, "IO" is a general concept of "real world interaction", "IO
+    Action" is a specific interaction like ~putStrLn :: String -> IO ()~
+- Performing IO in a Pure, Lazy Language
+  - Keeping IO Pure
+    - We can't just change the value of things, including what's outside the
+      function.
+    - The ~IO~ type is how we keep track of the /state of the real world/ in
+      Haskell.
+    - A /side effect/ is anything that happens outside of the function (reading an
+      environment variable, writing to a file, opening a socket, ...). ~IO~ keeps
+      track of those /side effects/.
+  - Keeping IO Lazy
+    - Lazyness requires that we *always* use the result of some work before the
+      work is actually done.
+    - Work might never get executed or might not get executed in the expected
+      order.
+    - In this setting keeping the inherently ordered nature of imperative IO can
+      be challenging
+      #+BEGIN_SRC haskell :eval never
+      -- we expect the following function to write "Hello" and "World" in this order
+      -- but for what we said, in Haskell it might not produce any output at all or in
+      -- an unexpected order like "World" before "Hello"
+
+      -- NOTE: it doesn't compile, pseudocode
+      doSomething =
+        putStrLn "Hello"
+        putStrLn "World"
+      #+END_SRC
+    - To chain IO actions we need to sequence them, aka we need to make sure to
+      use the output of the first IO action to perform the second IO action.
+      #+BEGIN_SRC haskell :eval never
+      :{
+      copyFile :: FilePath -> FilePath -> IO ()
+      copyFile src dst = (readFile src) `_` (writeFile dst)
+
+      -- Found hole: _ :: IO String -> (String -> IO ()) -> IO ()
+      -- IO String -> (String -> IO ()) -> IO ()
+      -- IO a -> (a -> IO b) -> IO b
+      :}
+      #+END_SRC
+    - In ~andThen~ Haskell *has* to run the first IO action otherwise we are not
+      able to produce the ~a~ that we need for the second IO action which will
+      produce the ~b~ that we are giving back as result. Therefore with this we
+      have *enforced* a sequence of IO actions by stating their relationship
+      (the second depends on the first).
+      #+BEGIN_SRC haskell
+      :{
+      andThen :: IO a -> (a -> IO b) -> IO b
+      andThen = undefined
+
+      copyFile :: FilePath -> FilePath -> IO ()
+      copyFile src dst = (readFile src) `andThen` (writeFile dst)
+      :}
+      #+END_SRC
+
+      #+RESULTS:
+      #+begin_EXAMPLE
+      #+end_EXAMPLE
+- Ordering and Combining IO Actions
+  - ~andThen~ is actually ~>>=~ (aka bind)
+  - ~newIO~ is actually ~return~
+  - You can use ~>>=~ and ~return~ to put IO actions in sequence as much as you
+    want
+- Indipendently Sequencing IO Actions
+  - Use ~>>~ if you only need sequencing without dependency
+- Mapping IO Values with fmap
+- Running IO in Real Applications
+  #+BEGIN_SRC haskell
+  :{
+  ignoreUnevaluatedIO :: IO Int
+  ignoreUnevaluatedIO =
+    let screamIntoTheVoid = putStrLn "quack"
+    in return 42
+  :}
+
+  -- since we are not looking at `screamIntoTheVoid`
+  -- * it never gets computed
+  -- * never becomes part of the history of the real world that we are returning
+  -- * never outputs "quack" on the screen
+  ignoreUnevaluatedIO
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  42
+  #+end_EXAMPLE
+
+IO actions carries the history of the states of the real world
+
+IO actions don't force the evalution of values carried by them
+
+  #+BEGIN_SRC haskell
+  sayHello = putStrLn "Hello"
+
+  raiseMathError = putStrLn "Before raising an error" >> return (1 `div` 0)
+
+  sayHello >> raiseMathError >> sayHello
+
+  -- the IO action carries a value but since is never needed it will not be evaluated
+  :t raiseMathError
+  #+END_SRC
+
+  #+RESULTS:
+  #+begin_EXAMPLE
+  Hello
+  Before raising an error
+  Hello
+  raiseMathError :: Integral b => IO b
+  #+end_EXAMPLE
+
+QUESTION: why all the files gets open at the same time?
+
+#+BEGIN_SRC haskell
+:{
+makeAndReadFile :: Int -> IO String
+makeAndReadFile n =
+  let fileName = "/tmp/test/" <> show n
+  in writeFile fileName fileName >> readFile fileName
+
+-- will blow up because it will open too many files at the same time, why ???
+unsafe :: IO ()
+unsafe = mapM makeAndReadFile [1..5000] >>= (putStrLn . show)
+
+makeAndShow :: Int -> IO ()
+makeAndShow n = makeAndReadFile n >>= putStrLn
+
+
+safe :: IO ()
+safe = mapM_ makeAndShow [1..5000]
+:}
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+#+end_EXAMPLE
+
+* Exercises
+** Thinking About IO Types
+1. Write a function that returns a value of type ~IO (IO String)~
+   #+BEGIN_SRC haskell
+   :{
+   f :: IO (IO String)
+   f = return $ return "Hello"
+   :}
+
+   -- What happens if you try to use `>>=` with that
+   f >>= putStrLn
+
+   -- What if you want to print the string?
+   f >>= \io -> io >>= putStrLn
+
+   -- Which is like
+   f >>= id >>= putStrLn
+
+   -- Which is
+   import Control.Monad (join)
+   join f >>= putStrLn
+   #+END_SRC
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   <interactive>:9:7: error:
+       • Couldn't match type: [Char]
+                        with: IO String
+         Expected: IO String -> IO ()
+           Actual: String -> IO ()
+       • In the second argument of ‘(>>=)’, namely ‘putStrLn’
+         In the expression: f >>= putStrLn
+         In an equation for ‘it’: it = f >>= putStrLn
+   Hello
+   Hello
+   Hello
+   #+end_EXAMPLE
+
+2. Using your function from the previous example, create a function that has the
+   type signature ~IO (IO a) -> IO a~
+   #+BEGIN_SRC haskell
+   :{
+   joinIO :: IO (IO a) -> IO a
+   joinIO m = m >>= id
+   :}
+   #+END_SRC
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   #+end_EXAMPLE
+
+3. Write a function that returns a value of type ~[IO a]~ and a second function
+   with the type ~[IO a] -> IO [a]~
+   #+BEGIN_SRC haskell
+   :{
+   wrapIO :: [a] -> [IO a]
+   wrapIO = fmap return
+
+   seqIO :: [IO a] -> IO [a]
+   seqIO ios = foldr (\x xs -> x >>= \x -> xs >>= \xs -> return $ x:xs) (return []) ios
+   -- Which is like
+   -- seqIO ios = foldr (\x xs -> (:) <$> x <*> xs) (return []) ios
+   :}
+
+   seqIO (wrapIO [1..10]) >>= (putStrLn . show)
+   #+END_SRC
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   [1,2,3,4,5,6,7,8,9,10]
+   #+end_EXAMPLE
+
+** Bulding a Command Line Calculator
+1. Write a program that reads in numbers from the command line and prints the
+   sum of the provvided values
+
+   #+BEGIN_SRC haskell :tangle chapter-07/Calculator1.hs :eval never
+   {-# LANGUAGE TypeApplications #-}
+   module Calculator1 where
+
+   sumLine :: String -> Int
+   sumLine = sum . (fmap $ read @Int) . words
+
+   main = sumLine <$> getLine >>= (putStrLn . show)
+   #+END_SRC
+
+   #+BEGIN_SRC shell :results raw :wrap EXAMPLE
+   cd chapter-07
+
+   echo "1 2 3" | runhaskell Calculator1.hs
+   #+END_SRC
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   6
+   #+end_EXAMPLE
+
+2. Modify your previous program so that the first argument is an operation (~+~
+   or ~-~ or ~*~) and peform the supplied operation on the list of numbers
+
+   #+BEGIN_SRC haskell :tangle chapter-07/Calculator2.hs :eval never
+   {-# LANGUAGE TypeApplications #-}
+   module Calculator2 where
+
+   applyOp :: (Int -> Int -> Int) -> [Int] -> Int
+   applyOp op (x:xs) = foldl op x xs
+   applyOp op [] = 0
+
+   runLine :: String -> Int
+   runLine s = let h:t = words s in applyOp (op h) (read @Int <$> t)
+     where op "+" = (+)
+           op "*" = (*)
+           op "-" = (-)
+           op s = error $ "Not an operator: " <> s
+
+   main = runLine <$> getLine >>= (putStrLn . show)
+   #+END_SRC
+
+   #+BEGIN_SRC shell :results raw :wrap EXAMPLE
+   cd chapter-07
+
+   echo "+ 1 2 3 4" | runhaskell Calculator2.hs
+   echo "* 1 2 3 4" | runhaskell Calculator2.hs
+   echo "- 10 3 2" | runhaskell Calculator2.hs
+   echo "+" | runhaskell Calculator2.hs
+   echo "hello" | runhaskell Calculator2.hs
+   #+END_SRC
+
+   #+RESULTS:
+   #+begin_EXAMPLE
+   10
+   24
+   5
+   0
+   0
+   #+end_EXAMPLE
+
+** Build a Word Replacement Utility
+Write an application that will accept three arguments on the command line:
+- ~path~: The path to a file
+- ~needle~: A word to find in the input file
+- ~replacement~: A word to use as a replacement
+
+#+BEGIN_SRC haskell :tangle chapter-07/Replace.hs :eval never
+{-# LANGUAGE RecordWildCards #-}
+module Replace where
+
+import System.Environment (getArgs)
+import Data.Maybe (fromMaybe)
+
+data Env = Env { path :: FilePath
+               , needle :: String
+               , replacement :: String
+               }
+
+fromEnvironment :: [String] -> Maybe Env
+fromEnvironment [path, needle, replacement] = Just $ Env {..}
+fromEnvironment _ = Nothing
+
+runReplace :: Maybe Env -> IO String
+runReplace Nothing = return "Not enough arguments"
+runReplace (Just Env {..}) = unwords . (fmap $ replaceWord needle replacement) . words <$> readFile path
+  where replaceWord :: String -> String -> String -> String
+        replaceWord needle replacement word
+          | needle == word = replacement
+          | otherwise = word
+
+main = (fromEnvironment <$> getArgs) >>= runReplace >>= putStrLn
+#+END_SRC
+
+#+BEGIN_SRC shell :results raw :wrap EXAMPLE
+cd chapter-07
+
+echo "This is a lot of fun. This is not a joke" > input
+
+runhaskell Replace.hs input This Haskell
+runhaskell Replace.hs input foo bar
+runhaskell Replace.hs not enough
+runhaskell Replace.hs
+#+END_SRC
+
+#+RESULTS:
+#+begin_EXAMPLE
+Haskell is a lot of fun. Haskell is not a joke
+This is a lot of fun. This is not a joke
+Not enough arguments
+Not enough arguments
+#+end_EXAMPLE
