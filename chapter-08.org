@@ -1,0 +1,65 @@
+#+TITLE: Working with Local System
+
+#+PROPERTY: header-args:haskell :results replace output
+#+PROPERTY: header-args:haskell+ :noweb yes
+#+PROPERTY: header-args:haskell+ :wrap EXAMPLE
+
+* Summary
+- Building Applications With IO
+- Procedural Shell, Functional Core
+  - Most of the IO happens at the "edges" of the "application".
+  - The pure part of the business logic happens at the "center" of the
+    "application".
+  - This separation can be applied fractally in an application by creating
+    smaller applications and composing them in the procedural shell (a single
+    function that works in IO can be implemented using the pattern separating
+    the IO actions from the pure code).
+- Creating a Pager
+  - Scaffolding of a project named ~hcat~
+  - Reading the name of the file from the argument list (by hand, not with a
+    library)
+    - **QUESTION**: why do this in the library and not in the executable?
+- Reading the contents of the file
+  - Handling IO exceptions
+    - ~System.IO.Error~ creating, modifying and handling IO errors
+    - ~Control.Exception~ more general set of tools to deal with exceptions
+    - **DISCUSS**: (pp295) why change to a lambda? weird code?
+    - **DISCUSS**: (pp296) ~handleIOError~ is not used?
+    - **DISCUSS**: (pp296/pp297) is turning ~Either~ in ~IOError~ a godd thing
+      or would be better to turn ~IOError~ in ~Either~? What's more idiomatic?
+  - Using efficient strings with ~Text~
+    - Package ~text~ has more efficient and correct Unicode text representation
+      - ~import qualified Data.Text as Text~
+      - ~import qualified Data.Text.IO as TextIO~
+      - ~Data.Text.Encoding~ has ~encodeUtf8~ and ~decodeUtf8~ to convert back
+        and forth between ~ByteString~ and ~Text~
+    - Package ~bytestring~ deals with files more efficiently representing data
+      with a strict packed array of bytes.
+      - ~import qualified Data.ByteString as BS~
+      - ~Data.ByteString.Lazy~ lazy evaluated bytestring useful when not sure
+        how much data you need to read off disk.
+      - ~Data.ByteString.Char8~ easier to convert back and forth between
+        ~String~ and ~Data.ByteString.Char8.ByteString~
+- Viewing Text One Page at a Time
+  - Group the characters of a file in pages with ~groupsOf~
+    - **NOTE** didn't understand, too convoluted, solved in my own way, still need
+      improvement
+  - Handling terminal dimension with static ~ScreenDimensions~
+  - Calling External Applications
+    - With ~process~ library, specifically ~readProcess~
+  - Getting User Input
+    - Disable buffering
+    - Disable echoing
+    - Waiting for user input
+    - Convert user input to ~Action~
+- Adding a Status Line with Metadata
+- Showing the Status Bar and Refactoring
+
+* Exercises
+- OK: Viewing multiple files (HCat3)
+- OK: Scrolling backwards (HCat2)
+- OK: Add help screen (HCat2)
+- OK~: Terminal resize but without keeping the current first line, will reload everything (HCat4)
+
+* More Challenges
+TODO
